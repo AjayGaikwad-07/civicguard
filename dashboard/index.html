@@ -10,17 +10,110 @@
     <header class="border-b bg-white">
       <div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
         <h1 class="text-xl font-semibold tracking-tight">CivicGuard</h1>
-        <span class="rounded-full bg-amber-100 px-3 py-1 text-sm text-amber-800">Skeleton</span>
+        <span id="health-badge" class="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">Checking…</span>
       </div>
     </header>
-    <main class="mx-auto max-w-5xl px-6 py-12">
-      <h2 class="text-2xl font-medium">Incoming reports</h2>
-      <p class="mt-2 max-w-xl text-slate-600">
-        Human review queue will appear here. Upload, triage, and case APIs are not wired yet.
-      </p>
-      <div class="mt-8 rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
-        No reports yet.
-      </div>
+    <main class="mx-auto max-w-5xl space-y-10 px-6 py-10">
+      <section>
+        <h2 class="text-2xl font-medium">File a civic report</h2>
+        <p class="mt-2 max-w-xl text-slate-600">
+          Upload a photo or short video of littering, dumping, vandalism, or fighting. Cases are stored in Postgres (Supabase).
+        </p>
+        <form id="upload-form" class="mt-6 space-y-4 rounded-lg border bg-white p-6">
+          <input class="block w-full text-sm" type="file" name="file" accept=".mp4,.mov,.avi,.jpg,.jpeg,.png" required />
+          <div class="grid gap-4 sm:grid-cols-2">
+            <input class="rounded border px-3 py-2" name="location_text" placeholder="Location (area / landmark)" />
+            <input class="rounded border px-3 py-2" name="captured_at" type="datetime-local" />
+          </div>
+          <button class="rounded bg-emerald-700 px-4 py-2 text-white hover:bg-emerald-800" type="submit">Submit report</button>
+          <p id="upload-status" class="text-sm text-slate-500"></p>
+        </form>
+      </section>
+      <section>
+        <h2 class="text-2xl font-medium">Incoming reports</h2>
+        <div id="reports" class="mt-4 overflow-hidden rounded-lg border bg-white">
+          <p class="p-10 text-center text-slate-500">Loading reports…</p>
+        </div>
+      </section>
     </main>
+    <script>
+      async function refreshHealth() {
+        const badge = document.getElementById("health-badge");
+        try {
+          const res = await fetch("/health");
+          const data = await res.json();
+          const dbOk = data.database === "ok";
+          badge.textContent = dbOk ? "API + database online" : "API online, database unavailable";
+          badge.className = dbOk
+            ? "rounded-full bg-emerald-100 px-3 py-1 text-sm text-emerald-800"
+            : "rounded-full bg-amber-100 px-3 py-1 text-sm text-amber-800";
+        } catch {
+          badge.textContent = "API offline";
+          badge.className = "rounded-full bg-red-100 px-3 py-1 text-sm text-red-800";
+        }
+      }
+
+      async function refreshReports() {
+        const root = document.getElementById("reports");
+        try {
+          const res = await fetch("/api/v1/reports");
+          if (!res.ok) throw new Error("Could not load reports");
+          const rows = await res.json();
+          if (!rows.length) {
+            root.innerHTML = '<p class="p-10 text-center text-slate-500">No reports yet.</p>';
+            return;
+          }
+          root.innerHTML = `
+            <table class="min-w-full text-left text-sm">
+              <thead class="bg-slate-50 text-slate-600">
+                <tr>
+                  <th class="px-4 py-3">Case</th>
+                  <th class="px-4 py-3">Status</th>
+                  <th class="px-4 py-3">Urgency</th>
+                  <th class="px-4 py-3">Location</th>
+                  <th class="px-4 py-3">Uploaded</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map(
+                    (row) => `
+                  <tr class="border-t">
+                    <td class="px-4 py-3 font-medium">${row.case_reference}</td>
+                    <td class="px-4 py-3">${row.status}</td>
+                    <td class="px-4 py-3">${row.urgency}</td>
+                    <td class="px-4 py-3">${row.location_text || "—"}</td>
+                    <td class="px-4 py-3">${new Date(row.uploaded_at).toLocaleString("en-IN")}</td>
+                  </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>`;
+        } catch (err) {
+          root.innerHTML = `<p class="p-10 text-center text-slate-500">${err.message}. Check DATABASE_URL / Supabase.</p>`;
+        }
+      }
+
+      document.getElementById("upload-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const status = document.getElementById("upload-status");
+        const form = event.currentTarget;
+        const body = new FormData(form);
+        status.textContent = "Uploading…";
+        try {
+          const res = await fetch("/api/v1/reports/upload", { method: "POST", body });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Upload failed");
+          status.textContent = `${data.case_reference} — ${data.message}`;
+          form.reset();
+          refreshReports();
+        } catch (err) {
+          status.textContent = err.message;
+        }
+      });
+
+      refreshHealth();
+      refreshReports();
+    </script>
   </body>
 </html>

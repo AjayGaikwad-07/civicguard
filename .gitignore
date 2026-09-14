@@ -65,5 +65,8 @@ Thumbs.db
 # Docker
 postgres_data/
 
+# Local deploy CLIs
+.tools/
+
 # Logs
 *.log

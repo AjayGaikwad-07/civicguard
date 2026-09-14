@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.database import get_db
 from app.models import AuditLog, FileType, Report, ReportCategory, ReportStatus, ReportUrgency
-from app.schemas import ReportUploadResponse
+from app.schemas import ReportRead, ReportUploadResponse
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 
@@ -57,6 +57,13 @@ def _next_case_reference(db: Session) -> str:
     if last:
         sequence = int(last.rsplit("-", 1)[-1]) + 1
     return f"{prefix}{sequence:05d}"
+
+
+@router.get("", response_model=list[ReportRead])
+def list_reports(db: Session = Depends(get_db)) -> list[Report]:
+    return list(
+        db.execute(select(Report).order_by(Report.uploaded_at.desc()).limit(50)).scalars().all()
+    )
 
 
 @router.post("/upload", response_model=ReportUploadResponse)

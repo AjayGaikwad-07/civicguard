@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     DATABASE_URL: str = "postgresql://civicguard:civicguard@localhost:5432/civicguard"
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
     JWT_SECRET: str = "change-me"
